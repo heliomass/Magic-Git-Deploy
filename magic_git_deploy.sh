@@ -21,6 +21,27 @@ function _prowl() {
 
 }
 
+function _display_help() {
+
+	cat << EOF
+Usage:
+	--repo      - Deployment Repository
+	                 (this is where you’ll be pushing your local Git repo to when you want to automate a deployment)
+	--deploy    - Deployment Directory
+	                 (the actual directory where your deployment will reside)
+	--log       - Logging Directory
+	                 (a directory to keep logs)
+	--use_prowl - Send a Prowl notification on beginning and end of process
+
+For more information, please consult the README file or visit:
+https://github.com/heliomass/Magic-Git-Deploy
+
+EOF
+
+return $?
+
+}
+
 # Parse command arguments
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -41,8 +62,8 @@ while [ $# -gt 0 ]; do
 			shift
 			;;
 		--help|-h|-?)
-			echo 'To Do.'
-			exit 0
+			_display_help
+			exit $?
 			;;
 		*)
 			echo "Unrecognised paramter ${1}. Please use the --help switch to see usage." >&2
