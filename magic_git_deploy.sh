@@ -3,11 +3,11 @@
 REPO=
 DEPLOY=
 LOG=
+BACKGROUND=0
+CHECK_FREQUENCY=
 USE_PROWL=0
 
 function _log() {
-
-	echo $1 >> $LOG
 
 	echo "$(date +"%Y-%m-%d %H:%M:%S") : $1" >> $LOG 2>&1
 
@@ -25,15 +25,17 @@ function _display_help() {
 
 	cat << EOF
 Usage:
-	--repo      - Deployment Repository
-	                 (this is where you’ll be pushing your local Git repo to when you want to automate a deployment)
-	--deploy    - Deployment Directory
-	                 (the actual directory where your deployment will reside)
-	--log       - Logging Directory
-	                 (a directory to keep logs)
-	--use_prowl - Send a Prowl notification on beginning and end of process
+	--repo            - Deployment Repository
+	                     (this is where you’ll be pushing your local Git repo to when you want to automate a deployment)
+	--deploy          - Deployment Directory
+	                     (the actual directory where your deployment will reside)
+	--log             - Logging Directory
+	                     (a directory to keep logs)
+	--background      - The script should expect to be run in the background, and continue until the process is killed
+	--check_frequency - The frequency in minutes where the script should check the build. Only needed if --background is invoked.
+	--use_prowl       - Send a Prowl notification on beginning and end of process
 
-For more information, please consult the README file or visit:
+For more information and example of usage, please consult the README file or visit:
 https://github.com/heliomass/Magic-Git-Deploy
 
 EOF
@@ -55,6 +57,14 @@ while [ $# -gt 0 ]; do
 			;;
 		--log)
 			LOG=$2
+			shift 2
+			;;
+		--background)
+			BACKGROUND=1
+			shift
+			;;
+		--check_frequency)
+			CHECK_FREQUENCY=$2
 			shift 2
 			;;
 		--use_prowl)
@@ -86,6 +96,10 @@ if [ -z $LOG ]; then
 	echo 'Please supply --log' >&2
 	arg_error=1
 fi
+if [ $BACKGROUND -eq 1 -a -z "$CHECK_FREQUENCY" ]; then
+	echo 'For background mode, please supply --check_frequency argument in minutes.'
+	exit 1
+fi
 
 if [ $arg_error -eq 1 ]; then
 	echo 'Please use --help to display info on all the possible arguments.' >&2
@@ -102,9 +116,14 @@ elif [ ! -f $REPO/refs/heads/master ]; then
 fi
 
 # Check the log path supplied is to a directory
-if [ ! -d "$LOG" ]; then
+if [ "$LOG" != '<<stdout>>' -a ! -d "$LOG" ]; then
 	echo 'Supplied logging directory does not exist.' >&2
 	arg_error=1
+fi
+
+# If we're backgrounding, convert the value of CHECK_FREQUENCY from minutes to seconds
+if [ $BACKGROUND -eq 1 ]; then
+	CHECK_FREQUENCY=$(echo "$CHECK_FREQUENCY * 60" | bc -l)
 fi
 
 # If a prowl server was provided, check prowl is installed
@@ -117,7 +136,11 @@ if [ $USE_PROWL -eq 1 ]; then
 fi
 
 # Override the log file name by appending the date to the end
-LOG="$(echo -n $(echo -n ${LOG} | sed 's|/$||')/$(basename $REPO) | sed 's|.git$||').$(date +%Y%m%d)"
+if [ "$LOG" != '<<stdout>>' ]; then
+	LOG="$(echo -n $(echo -n ${LOG} | sed 's|/$||')/$(basename $REPO) | sed 's|.git$||').$(date +%Y%m%d)"
+else
+	LOG='/dev/stdout'
+fi
 
 # Check we can access the log file
 touch $LOG
@@ -137,65 +160,87 @@ if [ $arg_error -eq 1 ]; then
 	exit 1
 fi
 
-_log "Begin."
-
 # Ensure the deploy path ends with a trailing slash
 DEPLOY="$(echo -n ${DEPLOY}/ | sed 's|//$|/|')"
 
-# Create our temporary storage area
-dir_checkout=$(mktemp -d)
+_log "Begin."
 
-# Get current hash of git repo
-current_hash=$(cat $REPO/refs/heads/master)
-
-# Get last hash of repo
-last_hash=
-if [ -f "$PREV_HASH_FILE" ]; then
-	last_hash=$(cat $PREV_HASH_FILE)
-fi
-
-_log "Current Hash:  $current_hash"
-_log "Previous Hash: $last_hash"
-
-# Compare
-if [ "$current_hash" != "$last_hash" ]; then
-
-	# We have a new deployment!
-	_log "A new deployment has been detected."
-	_prowl "A new deployment has been detected: $current_hash"
-	echo $current_hash > $PREV_HASH_FILE
-
-	# Clone the repo into the temporary directory
-	git clone --local $REPO $dir_checkout >> $LOG 2>&1
-
-	if [ $? -ne 0 ]; then
-		_log "Failed to checkout build."
-		_prowl "Failed to checkout build."
-		exit 1
-	fi
-
-	_log "Build checked out successfully."
-
-	# Now rsync the checked out build into the deployment directory, ignoring the .git files of course!
-	rsync ${dir_checkout}/ $DEPLOY --exclude '.git/' --recursive --delete-after --prune-empty-dirs --human-readable >> $LOG 2>&1
-
-	if [ $? -ne 0 ]; then
-		_log "Failed to deploy build."
-		_prowl "Failed to deploy build."
-		exit 1
-	fi
-
-	# Remove the checked out build.
-	rm -rf $dir_checkout >> $LOG 2>&1
-
-	_log "Successfully deployed build."
-	if [ $USE_PROWL -eq 1 ]; then
-		_prowl "Successfully deployed build."
-	fi
-
+if [ $BACKGROUND -ne 1 ]; then
+	_log "Mode set to cron (we will run only once, and then exit)"
 else
-	_log "No new deployment was detected."
+	_log "Mode set to background (we will run until the process is killed)"
 fi
+
+# We need to ensure we always carry out the loop at least once
+first_loop=1
+
+# We loop forever in background mode, otherwise we do it once.
+while [ $first_loop -eq 1 -o $BACKGROUND -eq 1 ]; do
+
+	first_loop=0
+
+	# Create our temporary storage area
+	dir_checkout=$(mktemp -d)
+
+	# Get current hash of git repo
+	current_hash=$(cat $REPO/refs/heads/master)
+
+	# Get last hash of repo
+	last_hash=
+	if [ -f "$PREV_HASH_FILE" ]; then
+		last_hash=$(cat $PREV_HASH_FILE)
+	fi
+
+	_log "Current Hash:  $current_hash"
+	_log "Previous Hash: $last_hash"
+
+	# Compare
+	if [ "$current_hash" != "$last_hash" ]; then
+
+		# We have a new deployment!
+		_log "A new deployment has been detected."
+		_prowl "A new deployment has been detected: $current_hash"
+		echo $current_hash > $PREV_HASH_FILE
+
+		# Clone the repo into the temporary directory
+		git clone --local $REPO $dir_checkout >> $LOG 2>&1
+
+		if [ $? -ne 0 ]; then
+			_log "Failed to checkout build."
+			_prowl "Failed to checkout build."
+			exit 1
+		fi
+
+		_log "Build checked out successfully."
+
+		# Now rsync the checked out build into the deployment directory, ignoring the .git files of course!
+		rsync ${dir_checkout}/ $DEPLOY --exclude '.git/' --recursive --delete-after --prune-empty-dirs --human-readable >> $LOG 2>&1
+
+		if [ $? -ne 0 ]; then
+			_log "Failed to deploy build."
+			_prowl "Failed to deploy build."
+			exit 1
+		fi
+
+		# Remove the checked out build.
+		rm -rf $dir_checkout >> $LOG 2>&1
+
+		_log "Successfully deployed build."
+		if [ $USE_PROWL -eq 1 ]; then
+			_prowl "Successfully deployed build."
+		fi
+
+	else
+		_log "No new deployment was detected."
+	fi
+
+	# If we're in background mode, sleep for a while
+	if [ $BACKGROUND -eq 1 ]; then
+		_log "Sleeping for $CHECK_FREQUENCY seconds."
+		sleep $CHECK_FREQUENCY
+	fi
+
+done
 
 _log "End."
 exit 0

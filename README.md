@@ -115,3 +115,22 @@ A. At the moment there is only support for [http://www.prowlapp.com](Prowl).
 Q. Can I use this script with multiple projects?
 
 A. Yes, just give each project its own cron.
+
+Q. I'd prefer to run this as a background job rather than via a cron. Is this possible?
+
+A. Indeed! You can run the script like so:
+
+```shell
+nohup magic_git_deploy.sh --repo ~/git/my_website_deployment.git --deploy /var/www/my_website --log ~/logs --background --check_frequency 1 > /dev/null 2>&1
+```
+Where `--background` tells the script to keep running, and `--check_frequency` is the period in minutes where the script should check for an update.
+
+You can also add this to your crontab in order to ensure the script runs in background mode after each restart:
+
+```shell
+@reboot nohup magic_git_deploy.sh --repo ~/git/my_website_deployment.git --deploy /var/www/my_website --log ~/logs --background --check_frequency 1
+```
+
+Q. Can I test out the script with the logging going to the main screen?
+
+A. Yes, simply invoke the script with `'<<stdout>>'` as the log file. This will pipe all output to `/dev/stdout`.
