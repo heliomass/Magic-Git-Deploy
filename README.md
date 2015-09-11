@@ -134,3 +134,7 @@ You can also add this to your crontab in order to ensure the script runs in back
 Q. Can I test out the script with the logging going to the main screen?
 
 A. Yes, simply invoke the script with `'<<stdout>>'` as the log file. This will pipe all output to `/dev/stdout`.
+
+Q. There are some files I want to completely ignore, so that they don't get overwritten or deleted by the deployment. Is there a way I can achieve this?
+
+A. Yes, just create a file named `.deployignore` at the root of your project and add it to your git repository. Any files listed here will be completely ignored by the deployment process.

@@ -213,8 +213,16 @@ while [ $first_loop -eq 1 -o $BACKGROUND -eq 1 ]; do
 
 		_log "Build checked out successfully."
 
+		# Now get a list of files we need to ignore
+		ignore_files=
+		if [ -f "${dir_checkout}/.deployignore" ]; then
+			while read -r line; do
+				ignore_files="$ignore_files --exclude $line "
+			done < ${dir_checkout}/.deployignore
+		fi
+
 		# Now rsync the checked out build into the deployment directory, ignoring the .git files of course!
-		rsync ${dir_checkout}/ $DEPLOY --exclude '.git/' --recursive --delete-after --prune-empty-dirs --human-readable >> $LOG 2>&1
+		rsync ${dir_checkout}/ $DEPLOY --exclude '.git/' $ignore_files --recursive --delete-after --prune-empty-dirs --human-readable >> $LOG 2>&1
 
 		if [ $? -ne 0 ]; then
 			_log "Failed to deploy build."
