@@ -35,7 +35,7 @@ You should now add the remote repository you created above on your **local** mac
 
 ```shell
 cd ~/my_website_dev
-git remote add username@server:~/git/my_website_deployment.git
+git remote add deploy username@server:~/git/my_website_deployment.git
 ```
 
 Also, don't forget to create a directory on the **server** for the deployment itself!
