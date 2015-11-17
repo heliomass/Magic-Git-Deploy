@@ -110,7 +110,7 @@ A. Yes. The script executes `rsync` in a way that will remove any files which no
 
 Q. Is there a way to be notified of a successful deployment without having to consult the logs?
 
-A. At the moment there is only support for [http://www.prowlapp.com](Prowl).
+A. At the moment there is only support for [Prowl](http://www.prowlapp.com).
 
 Q. Can I use this script with multiple projects?
 
