@@ -179,9 +179,6 @@ while [ $first_loop -eq 1 -o $BACKGROUND -eq 1 ]; do
 
 	first_loop=0
 
-	# Create our temporary storage area
-	dir_checkout=$(mktemp -d)
-
 	# Get current hash of git repo
 	current_hash=$(cat $REPO/refs/heads/master)
 
@@ -201,6 +198,9 @@ while [ $first_loop -eq 1 -o $BACKGROUND -eq 1 ]; do
 		_log "A new deployment has been detected."
 		_prowl "A new deployment has been detected: $current_hash"
 		echo $current_hash > $PREV_HASH_FILE
+
+		# Create our temporary storage area
+		dir_checkout=$(mktemp -d)
 
 		# Clone the repo into the temporary directory
 		git clone --local $REPO $dir_checkout >> $LOG 2>&1
