@@ -213,8 +213,10 @@ while [ $first_loop -eq 1 -o $BACKGROUND -eq 1 ]; do
 
 		_log "Build checked out successfully."
 
-		# Now get a list of files we need to ignore
-		ignore_files=
+		# Now get a list of files we need to ignore.
+		# Naturally, we implicitly assume the .deployignore file
+		# itself should always be ignored and never deployed ;)
+		ignore_files='--exclude .deployignore '
 		if [ -f "${dir_checkout}/.deployignore" ]; then
 			while read -r line; do
 				ignore_files="$ignore_files --exclude $line "
